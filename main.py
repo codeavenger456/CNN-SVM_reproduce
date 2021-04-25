@@ -82,7 +82,7 @@ if __name__ == "__main__":
         )
         model.train(
             checkpoint_path=args.checkpoint_path,
-            epochs=10000,
+            epochs=100,
             log_path=args.log_path,
             train_data=mnist.train,
             test_data=mnist.test,
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         )
         model.train(
             checkpoint_path=args.checkpoint_path,
-            epochs=10000,
+            epochs=100,
             log_path=args.log_path,
             train_data=mnist.train,
             test_data=mnist.test,
