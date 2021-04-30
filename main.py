@@ -106,7 +106,7 @@ if __name__ == "__main__":
         )
         model.train(
             checkpoint_path=args.checkpoint_path,
-            epochs=10000,
+            epochs=3000,
             log_path=args.log_path,
             train_data = train_dataset,
             test_data_one = public_test,
@@ -122,7 +122,7 @@ if __name__ == "__main__":
         )
         model.train(
             checkpoint_path=args.checkpoint_path,
-            epochs=10000,
+            epochs=3000,
             log_path=args.log_path,
             train_data = train_dataset,
             test_data_one = public_test,
