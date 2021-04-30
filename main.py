@@ -22,8 +22,11 @@ __author__ = "Abien Fred Agarap"
 import argparse
 from model.cnn_softmax import CNN
 from model.cnn_svm import CNNSVM
-from tensorflow.examples.tutorials.mnist import input_data
-
+from cnn_svm.utils.data import *
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from keras.utils import to_categorical
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -33,9 +36,9 @@ def parse_args():
     group.add_argument(
         "-m", "--model", required=True, type=str, help="[1] CNN-Softmax, [2] CNN-SVM"
     )
-    group.add_argument(
-        "-d", "--dataset", required=True, type=str, help="path of the MNIST dataset"
-    )
+    #group.add_argument(
+        #"-d", "--dataset", required=True, type=str, help="path of the MNIST dataset"
+    #)
     group.add_argument(
         "-p",
         "--penalty_parameter",
@@ -63,10 +66,31 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    
+    data = pd.read_csv('fer2013.csv').values
+    y = data[:, 0]
+    y = to_categorical(y, 10)
+    pixels = data[:, 1]
+    X = np.zeros((pixels.shape[0], 48*48))
+    for ix in range(X.shape[0]):
+        p = pixels[ix].split(' ')
+        for iy in range(X.shape[1]):
+            X[ix, iy] = int(p[iy])
 
-    mnist = input_data.read_data_sets(args.dataset, one_hot=True)
-    num_classes = mnist.train.labels.shape[1]
-    sequence_length = mnist.train.images.shape[1]
+    x = X/255
+    x_train = x[0:28709, :]
+    y_train = y[0:28709, :]
+    x_test_public = x[28709:32298, :]
+    y_test_public = y[28709:32298, :]
+    x_test_private = x[32298:, :]
+    y_test_private = y[32298:, :]
+    train_dataset = DataSet(x_train, y_train)
+    public_test = DataSet(x_test_public, y_test_public)
+    private_test = DataSet(x_test_private, y_test_private)
+    
+    num_classes = y_train.shape[1]
+    sequence_length = x_train.shape[1]
+    
     model_choice = args.model
 
     assert (
@@ -82,10 +106,11 @@ if __name__ == "__main__":
         )
         model.train(
             checkpoint_path=args.checkpoint_path,
-            epochs=100,
+            epochs=10000,
             log_path=args.log_path,
-            train_data=mnist.train,
-            test_data=mnist.test,
+            train_data = train_dataset,
+            test_data_one = public_test,
+            test_data_two = private_test
         )
     elif model_choice == "2":
         model = CNNSVM(
@@ -97,8 +122,9 @@ if __name__ == "__main__":
         )
         model.train(
             checkpoint_path=args.checkpoint_path,
-            epochs=100,
+            epochs=10000,
             log_path=args.log_path,
-            train_data=mnist.train,
-            test_data=mnist.test,
+            train_data = train_dataset,
+            test_data_one = public_test,
+            test_data_two = private_test
         )
