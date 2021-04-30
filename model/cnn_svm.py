@@ -20,10 +20,12 @@ __version__ = "0.1.0"
 __author__ = "Abien Fred Agarap"
 
 import os
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+tf.disable_eager_execution()
+import numpy as np
 import time
 import sys
-
 
 class CNNSVM:
     def __init__(self, alpha, batch_size, num_classes, num_features, penalty_parameter):
@@ -48,18 +50,20 @@ class CNNSVM:
                 # [BATCH_SIZE, NUM_FEATURES]
                 x_input = tf.placeholder(
                     dtype=tf.float32, shape=[None, num_features], name="x_input"
+                    #dtype=tf.float32, shape=[self.batch_size, num_features], name="x_input"
                 )
 
                 # [BATCH_SIZE, NUM_CLASSES]
                 y_input = tf.placeholder(
                     dtype=tf.float32, shape=[None, num_classes], name="actual_label"
+                    #dtype=tf.float32, shape=[self.batch_size, num_classes], name="actual_label"
                 )
 
             # First convolutional layer
             first_conv_weight = self.weight_variable([5, 5, 1, 32])
             first_conv_bias = self.bias_variable([32])
-
-            input_image = tf.reshape(x_input, [-1, 28, 28, 1])
+        
+            input_image = tf.reshape(x_input, [-1, 48, 48, 1])
 
             first_conv_activation = tf.nn.relu(
                 self.conv2d(input_image, first_conv_weight) + first_conv_bias
@@ -76,10 +80,10 @@ class CNNSVM:
             second_conv_pool = self.max_pool_2x2(second_conv_activation)
 
             # Fully-connected layer (Dense Layer)
-            dense_layer_weight = self.weight_variable([7 * 7 * 64, 1024])
+            dense_layer_weight = self.weight_variable([9216, 1024])
             dense_layer_bias = self.bias_variable([1024])
 
-            second_conv_pool_flatten = tf.reshape(second_conv_pool, [-1, 7 * 7 * 64])
+            second_conv_pool_flatten = tf.reshape(second_conv_pool, [-1, 9216])
             dense_layer_activation = tf.nn.relu(
                 tf.matmul(second_conv_pool_flatten, dense_layer_weight)
                 + dense_layer_bias
@@ -116,8 +120,9 @@ class CNNSVM:
                     tf.argmax(output, 1), tf.argmax(y_input, 1)
                 )
                 with tf.name_scope("accuracy"):
-                    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+                    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float64))
             tf.summary.scalar("accuracy", accuracy)
+            
 
             merged = tf.summary.merge_all()
 
@@ -134,7 +139,7 @@ class CNNSVM:
         __graph__()
         sys.stdout.write("</log>\n")
 
-    def train(self, checkpoint_path, epochs, log_path, train_data, test_data):
+    def train(self, checkpoint_path, epochs, log_path, train_data, test_data_one, test_data_two):
         """Trains the initialized model.
 
         :param checkpoint_path: The path where to save the trained model.
@@ -172,18 +177,19 @@ class CNNSVM:
                 )
                 saver.restore(sess, tf.train.latest_checkpoint(checkpoint_path))
 
+            acc = open("cnn_svm_data/acc.txt", "w")
+            losses = open("cnn_svm_data/loss.txt", "w")
             for index in range(epochs):
                 # train by batch
                 batch_features, batch_labels = train_data.next_batch(self.batch_size)
                 batch_labels[batch_labels == 0] = -1
-
                 # input dictionary with dropout of 50%
                 feed_dict = {
                     self.x_input: batch_features,
                     self.y_input: batch_labels,
                     self.keep_prob: 0.5,
                 }
-
+                
                 # run the train op
                 summary, _, loss = sess.run(
                     [self.merged, self.optimizer, self.loss], feed_dict=feed_dict
@@ -206,6 +212,9 @@ class CNNSVM:
                             index, train_accuracy, loss
                         )
                     )
+                    
+                    acc.write(str(train_accuracy)+"\n")
+                    losses.write(str(loss)+"\n")
 
                     train_writer.add_summary(summary=summary, global_step=index)
 
@@ -214,9 +223,12 @@ class CNNSVM:
                         save_path=os.path.join(checkpoint_path, self.name),
                         global_step=index,
                     )
-
-            test_features = test_data.images
-            test_labels = test_data.labels
+                    
+            acc.close()
+            losses.close()
+            
+            test_features = test_data_one._images
+            test_labels = test_data_one._labels
             test_labels[test_labels == 0] = -1
 
             feed_dict = {
@@ -227,7 +239,21 @@ class CNNSVM:
 
             test_accuracy = sess.run(self.accuracy, feed_dict=feed_dict)
 
-            print("Test Accuracy: {}".format(test_accuracy))
+            print("Public test Accuracy: {}".format(test_accuracy))
+            
+            test_features = test_data_two._images
+            test_labels = test_data_two._labels
+            test_labels[test_labels == 0] = -1
+
+            feed_dict = {
+                self.x_input: test_features,
+                self.y_input: test_labels,
+                self.keep_prob: 1.0,
+            }
+            
+            test_accuracy = sess.run(self.accuracy, feed_dict=feed_dict)
+
+            print("Private test Accuracy: {}".format(test_accuracy))
 
     @staticmethod
     def weight_variable(shape):
